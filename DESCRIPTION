@@ -1,0 +1,57 @@
+SQLITE3 query tool for shell usage
+# $Header$
+#
+# $Log$
+# Revision 1.1  2006-06-02 01:31:49  tino
+# First version, global commit
+#
+
+<b>Sorry, only works with sqlite version 3 yet!</b>
+
+If you want to pipe data in and out a sqlite3 database from shell,
+this tool is for you.
+With this tool you never have to escape arguments from shell ever again
+(as long as you don't pass them in the SQL string directly).
+
+Example insert:
+<pre>
+env="this goes into col1"
+arg="this goes into col2"
+./sq3 test.db 'create table a ( col1, col2, col3 ); insert into a values ($env,?,:fd3)' "$arg" 3<filename
+</pre>
+This stores the environment variable $a into col1, puts the arg into col2 and reads col3 from filename as BLOB.
+
+Reading the data is likewise easy:
+<pre>
+./sq3 test.db 'select col1,col2,col3 from a' |
+while read -r row col type data
+do
+	case "$type" in
+	t)      echo "row=$row col=$col data=$data";;
+	e)      echo -e "row=$row col=$col data=$data";;
+	0)      echo "row=$row col=$col NULL";;
+	esac
+done
+</pre>
+Data which cannot be read easily is escaped using the shell escape.
+
+Another usage for access of attachment or binary data:
+<pre>
+./sq3 test.db "insert into a values ('file',NULL,:fd0)" < file
+./sq3 -r test.db "select col3 from a where col1='file'" | cmp - file
+</pre>
+
+Or lazy argument processing:
+<pre>
+./sq3 test.db "delete from a; insert into a values ('line1','line2','line3'); insert into a values ('lineA','lineB','lineC')"
+./sq3 -r test.db "select * from a" |
+{
+while read -r col1 && read -r col2
+do
+	read -r col3 || echo -n "last "
+	echo "lazy: $col1 - $col2 - $col3"
+done
+}
+</pre>
+The funny thing is the missing newline which makes the "read -r col3" to return EOF.
+Well, one can consider this a feature, but it's moreover a crude sideeffect ;)

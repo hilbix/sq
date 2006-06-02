@@ -1,0 +1,16 @@
+$Header$
+
+SQLITE3 query tool for shell usage
+
+Please read DESCRIPTION
+
+To compile just type
+	make
+
+You need a sqlite3 library installed for this to compile!
+
+-Tino
+$Log$
+Revision 1.1  2006-06-02 01:31:49  tino
+First version, global commit
+
