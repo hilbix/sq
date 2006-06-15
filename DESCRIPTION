@@ -2,7 +2,10 @@ SQLITE3 query tool for shell usage
 # $Header$
 #
 # $Log$
-# Revision 1.1  2006-06-02 01:31:49  tino
+# Revision 1.2  2006-06-15 13:15:12  tino
+# Typo corrected
+#
+# Revision 1.1  2006/06/02 01:31:49  tino
 # First version, global commit
 #
 
@@ -15,11 +18,11 @@ With this tool you never have to escape arguments from shell ever again
 
 Example insert:
 <pre>
-env="this goes into col1"
+export env="this goes into col1"
 arg="this goes into col2"
-./sq3 test.db 'create table a ( col1, col2, col3 ); insert into a values ($env,?,:fd3)' "$arg" 3<filename
+./sq3 test.db 'create table a ( col1, col2, col3 ); insert into a values ($env,?,:fd3)' "$arg" 3< filename
 </pre>
-This stores the environment variable $a into col1, puts the arg into col2 and reads col3 from filename as BLOB.
+This stores the environment variable $env into col1, puts the arg into col2 and reads col3 from filename as BLOB.
 
 Reading the data is likewise easy:
 <pre>
