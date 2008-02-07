@@ -1,0 +1,4 @@
+2007-12-20  Valentin Hilbig  <tino@firebird.03.softkill.net>
+
+	* sq.h (main): Bugfix: arg0 path \ was never considered
+

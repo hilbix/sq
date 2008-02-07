@@ -2,7 +2,7 @@
  *
  * SQLITE3 query tool for shell usage
  *
- * Copyright (C)2006 Valentin Hilbig, webmaster@scylla-charybdis.com
+ * Copyright (C)2006-2008 Valentin Hilbig, webmaster@scylla-charybdis.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,9 +19,11 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.2  2008-02-07 02:23:20  tino
+ * Option -l and Cygwin fixes
+ *
  * Revision 1.1  2006-06-02 01:31:49  tino
  * First version, global commit
- *
  */
 
 #include <stdlib.h>
@@ -166,39 +168,160 @@ row(SQ_PREFIX(_stmt) *s, int r)
     }
 }
 
-static int
-fetchfile(SQ_PREFIX(_stmt) *pStmt, int i, int cnt, int fd)
+static void *
+my_realloc(void *ptr, size_t len)
 {
-  static char	*buf;
-  static int	max;
-  int		len, inc;
+  ptr	= ptr ? realloc(ptr, len) : malloc(len);
+  if (!ptr)
+    err(SQLITE_OK, "out of memory");
+  return ptr;
+}
 
+static int
+hunt_read(const char *ptr, int *len, int got, int readend, int readmax)
+{
+  int	pos;
+
+  if (readmax && *len+got>readmax)
+    got	= readmax- *len;
+  if (readend<0)
+    {
+      *len	+= got;
+      return got;
+    }
+  pos	= *len;
+  if (readend==256)
+    {
+      for (; --got>=0; pos++)
+	if (isspace(ptr[pos]))
+	  {
+	    *len	= pos+1;
+	    return pos;
+	  }
+    }
+  else
+    {
+      for (; --got>=0; pos++)
+	if ((unsigned char)ptr[pos]==(unsigned char)readend)
+	  {
+	    *len	= pos+1;
+	    return pos;
+	  }
+    }
+  *len	= pos;
+  return pos;
+}
+
+static int
+fetchfile(SQ_PREFIX(_stmt) *pStmt, int i, int cnt, int fd, char *end, int *looper)
+{
+  static int		allocs;
+  static struct fetch_buf
+    {
+      int	pos, fill, max;
+      char	*buf;
+    } *fds;
+  int			inc, len, off;
+  struct fetch_buf	*tmp;
+  long			readmax;
+  int			readend;
+  int			readtrim;
+
+  if (fd>=allocs)
+    {
+      fds	= my_realloc(fds, (fd+1)*sizeof *fds);
+      memset(fds+allocs, 0, (fd+1-allocs)*sizeof *fds);
+      allocs	= fd+1;
+    }
+  readmax	= 0;
+  readend	= -1;
+  readtrim	= 0;
+  if (end)
+    {
+      if (*end++!='_')
+	err(SQLITE_OK, "missing : in %s", end);
+      readmax	= strtol(end, &end, 0);
+      if (*end=='t')
+	{
+	  readtrim	= 1;
+	  end++;
+	}
+      if (*end)
+	{
+	  readend	= 256;
+	  if (*end++!='_')
+	    err(SQLITE_OK, "missing : in %s", end);
+	  if (*end)
+	    {
+	      readend	= strtol(end, &end, 0);
+	      if (readend<0 || readend>255)
+		err(SQLITE_OK, "invalid parameter %d", readend);
+	      if (*end)
+		err(SQLITE_OK, "parameter mismatch at %s", end);
+	    }
+	}
+    }
+  tmp	= fds+fd;
   inc	= 0;
   len	= 0;
+  off	= 0;
   for (;;)
     {
       int	got;
 
-      if (len>=max)
+      if (tmp->pos+len<tmp->fill)
 	{
-	  if ((max+=inc+=BUFSIZ)<0)
-	    err(SQLITE_OK, "internal counter overrun reading fd %d", fd);
-	  buf	= realloc(buf, max);
+	  off	=  hunt_read(tmp->buf+tmp->pos, &len, tmp->fill-tmp->pos-len, readend, readmax);
+	  if (off<tmp->fill-tmp->pos)
+	    {
+	      if (!*looper)
+		*looper	= 1;
+	      break;
+	    }
 	}
-      if (!buf)
-	err(SQLITE_OK, "out of memory readin fd %d", fd);
-      got	= read(fd, buf+len, max-len);
+      if (tmp->fill>=tmp->max)
+	{
+	  if (tmp->pos)
+	    {
+	      if (tmp->fill>tmp->pos)
+		memmove(tmp->buf, tmp->buf+tmp->pos, tmp->fill-=tmp->pos);
+	      else
+		tmp->fill	= 0;
+	      tmp->pos		= 0;
+	      continue;
+	    }
+	  if ((tmp->max+=(inc+=BUFSIZ))<0)
+	    err(SQLITE_OK, "internal counter overrun reading fd %d", fd);
+	  tmp->buf	= my_realloc(tmp->buf, tmp->max);
+	  debug("(fd %d: len %d) ", fd, tmp->max);
+	}
+      got	= read(fd, tmp->buf+tmp->fill, tmp->max-tmp->fill);
       if (got<=0)
 	{
  	  if (!got)
-	    break;
+	    {
+	      if (!len && end)
+		*looper	= -1;
+	      break;
+	    }
 	  if (errno==EINTR || errno==EAGAIN)
 	    continue;
 	  err(SQLITE_OK, "read error from fd %d", fd);
 	}
-      len	+= got;
+      tmp->fill	+= got;
     }
-  check(SQ_PREFIX(_bind_blob)(pStmt, i, buf, len, SQLITE_TRANSIENT), "cannot bind parm %d: fd %d", cnt, fd);
+  if (readtrim)
+    {
+      while (off>0 && isspace(tmp->buf[tmp->pos]))
+	{
+	  off--;
+	  tmp->pos++;
+	}
+      while (off>0 && isspace(tmp->buf[tmp->pos+off-1]))
+	off--;
+    }
+  check(SQ_PREFIX(_bind_blob)(pStmt, i, tmp->buf+tmp->pos, off, SQLITE_TRANSIENT), "cannot bind parm %d: fd %d", cnt, fd);
+  tmp->pos	+= len;
   return len;
 }
 
@@ -207,33 +330,52 @@ main(int argc, char **argv)
 {
   const char		*s, *zTail;
   SQ_PREFIX(_stmt)	*pStmt;
-  int			cnt, arg, res;
-  long			timeout	= 100;
+  int			cnt, arg, res, looping;
+  long			timeout;
   const char		*arg0;
 
   arg0	= strrchr(argv[0], '/');
-  if (!arg0++ && (arg0=strrchr(argv[0], '/'), !arg0++))
+  if (!arg0++ && (arg0=strrchr(argv[0], '\\'), !arg0++))
     arg0	= argv[0];
 
-  /* actually this are hacks	*/
-  if (argc>1 && !strcmp(argv[1], "-d"))
-    argv++, argc--, dodebug=1;
-  if (argc>1 && argv[1][0]=='-' && argv[1][1]=='t')
-    argv++, argc--, timeout = strtol(argv[0]+2, NULL, 0);
-  if (argc>1 && !strcmp(argv[1], "-r"))
-    argv++, argc--, doraw=1;
+  looping	= 0;
+  timeout	= 100;
 
+  /* actually this is a hack	*/
+  for (; argc>1 && argv[1][0]=='-'; argv++, argc--)
+    {
+      switch (argv[1][1])
+	{
+	case 'd':
+	  dodebug	= 1;
+	  continue;
+	case 'l':
+	  looping	= 1;
+	  continue;
+	case 't':
+	  timeout	= strtol(argv[1]+2, NULL, 0);
+	  continue;
+	case 'r':
+	  doraw		= 1;
+	  continue;
+	}
+      break;
+    }
   if (argc<3)
     {
       fprintf(stderr,
-	      "Usage: %s [-d] [-tN] [-r] database statement args #<data\n"
+	      "Usage: %s [-d] [-l] [-tN] [-r] database statement args #<data\n"
 	      "\t\tversion " SQ_VERSION " compiled " __DATE__ "\n"
 	      "\t-d	switch on some debugging to stderr\n"
+	      "\t-l	loop option added, loop if :fd#,X sequence not at EOF\n"
 	      "\t-tN	set the timeout in ms, default %ld\n"
-	      "\t-rN	raw output, no row, col, type, fields NL separated\n"
-	      "\tUse ? or :name to fetch args, $ENV to access environment\n"
+	      "\t-r	raw output, no row, col, type, fields NL separated\n"
+	      "\tUse ?NNN or :XXX to fetch args, $ENV to access environment\n"
 	      "\tSome :name have special meaning:\n"
 	      "\t	:fd#	read BLOB from file descriptor # (0=stdin)\n"
+	      "\t	:fd#_N	read N characters, N is max if used in :fd#_N_T\n"
+	      "\t	:fd#__T	read up to character T, T defaults to whitespace\n"
+	      "\t	Special: If N ends on t, whitespace trimming is done\n"
 	      "\tParse the output as follows:\n"
 	      "\t	sq3 'select * from table' |\n"
 	      "\t	while read -r row col type data\n"
@@ -254,70 +396,85 @@ main(int argc, char **argv)
   res	= 0;
   do
     {
-      int	n, i;
+      int	n, i, looper, larg;
 
+      larg	= arg;
       zTail	= 0;
       check(SQ_PREFIX(_prepare)(db, s, -1, &pStmt, &zTail), "invalid sql: %s", s);
-      n		= SQ_PREFIX(_bind_parameter_count)(pStmt);
-      for (i=1; i<=n; i++)
-	{
-	  const char *name, *parm;
-
-	  cnt++;
-	  debug("[%d] parm", cnt);
-	  name	= SQ_PREFIX(_bind_parameter_name)(pStmt, i);
-	  if (name)
-	    debug(" %s", name);
-	  else
-	    name	= "";
-	  switch (*name)
-	    {
-	      int	fd;
-	      char	*end;
-
-	    default:
-	      err(SQLITE_OK, "internal error: %s", name);
-	    case ':':
-	      if (name[1]=='f' && name[2]=='d' && name[3] && ((fd=strtol(name+3, &end, 10)), end && !*end))
-		{
-		  fd	= fetchfile(pStmt, i, cnt, fd);
-	  	  debug(" = %d bytes\n", fd);
-		  continue;
-		}
-	    case '?':
-	    case 0:
-	      if (arg>=argc)
-		err(SQLITE_OK, "missing argument on commandline: %d", arg);
-	      parm	= argv[arg++];
-	      break;
-
-	    case '$':
-	      parm	= getenv(name+1);
-	      break;
-	    }
-	  debug(" = '%s'\n", parm);
-	  check(SQ_PREFIX(_bind_text)(pStmt, i, parm, -1, SQLITE_TRANSIENT), "cannot bind parm %d: '%s'", cnt, parm);
-	}
       for (;;)
 	{
-	  int	r;
-
-	  switch (r=SQ_PREFIX(_step)(pStmt))
+	  looper	= 0;
+	  arg		= larg;
+	  n		= SQ_PREFIX(_bind_parameter_count)(pStmt);
+	  for (i=1; i<=n; i++)
 	    {
-	    case SQLITE_ROW:
-	      row(pStmt, ++res);
-	      continue;
+	      const char *name, *parm;
 
-	    default:
-	      err(r, "cannot step statement: %.*s", (int)(zTail-s), s);
+	      cnt++;
+	      debug("[%d] parm", cnt);
+	      name	= SQ_PREFIX(_bind_parameter_name)(pStmt, i);
+	      if (name)
+		debug(" %s", name);
+	      else
+		name	= "";
+	      switch (*name)
+		{
+		  int	fd;
+		  char	*end;
 
-	    case SQLITE_DONE:
+		default:
+		  err(SQLITE_OK, "internal error: %s", name);
+
+		case ':':
+		  if (name[1]=='f' && name[2]=='d' && name[3] && (((fd=strtol(name+3, &end, 10)), end) && (!*end || (looping && *end=='_'))))
+		    {
+		      fd	= fetchfile(pStmt, i, cnt, fd, end, &looper);
+		      debug(" = %d bytes (loop %d)\n", fd, looper);
+		      continue;
+		    }
+		case '?':
+		case 0:
+		  if (arg>=argc)
+		    err(SQLITE_OK, "missing argument on commandline: %d", arg);
+		  parm	= argv[arg++];
+		  break;
+
+		case '$':
+		  parm	= getenv(name+1);
+		  break;
+		}
+	      debug(" = '%s'\n", parm);
+	      check(SQ_PREFIX(_bind_text)(pStmt, i, parm, -1, SQLITE_TRANSIENT), "cannot bind parm %d: '%s'", cnt, parm);
+	    }
+	  if (looper<0)
+	    break;
+	  debug("run %d\n", looper);
+	  for (;;)
+	    {
+	      int	r;
+
+	      switch (r=SQ_PREFIX(_step)(pStmt))
+		{
+		case SQLITE_ROW:
+		  row(pStmt, ++res);
+		  continue;
+
+		default:
+		  err(r, "cannot step statement: %.*s", (int)(zTail-s), s);
+
+		case SQLITE_DONE:
+		  break;
+		}
 	      break;
 	    }
-	  break;
+	  if (!looper)
+	    break;
+	  debug("reset\n", looper);
+	  check(SQ_PREFIX(_reset)(pStmt), "cannot reset statement: %.*s", (int)(zTail-s), s);
 	}
       check(SQ_PREFIX(_finalize)(pStmt), "cannot finalize statement: %.*s", (int)(zTail-s), s);
     } while ((s=zTail)!=0 && *s);
+
   check(SQ_PREFIX(_close)(db), "cannot close db %s", argv[1]);
   return 0;
 }

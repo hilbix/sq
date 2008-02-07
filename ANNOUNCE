@@ -1,1 +1,15 @@
-It works
+Minor bugfix removed (argv[0] for CygWin), option -l for looping added
+
+With Option -l you can do things like
+<pre>
+find . -type f -print0 |
+md5chk -nz |
+sq3 -l DB "insert into md5 ( :fd0::32, :fd0::0 )"
+</pre>
+
+For LF use something like ":fd0::10".
+
+To get rid of a CR in a CR LF sequence, use the trim option.  This is
+activated by negative values, like ':fd0,-100' or ':fd0,,-10'.
+
+But be careful as always, this has not yet been extensively debugged.
