@@ -1,5 +1,5 @@
 Makefile
 Makefile.md5
 *.d
-sq
-sq_version.h
+sq3
+sq3_version.h
