@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.3  2008-03-04 09:34:01  tino
+ * Bugfix: $fd# did no more work without -l
+ *
  * Revision 1.2  2008-02-07 02:23:20  tino
  * Option -l and Cygwin fixes
  *
@@ -236,28 +239,31 @@ fetchfile(SQ_PREFIX(_stmt) *pStmt, int i, int cnt, int fd, char *end, int *loope
   readmax	= 0;
   readend	= -1;
   readtrim	= 0;
-  if (end)
+  if (end && *end)
     {
       if (*end++!='_')
-	err(SQLITE_OK, "missing : in %s", end);
+	err(SQLITE_OK, "missing underscore (_) in %s", end);
       readmax	= strtol(end, &end, 0);
-      if (*end=='t')
+      if (end)
 	{
-	  readtrim	= 1;
-	  end++;
-	}
-      if (*end)
-	{
-	  readend	= 256;
-	  if (*end++!='_')
-	    err(SQLITE_OK, "missing : in %s", end);
+	  if (*end=='t')
+	    {
+	      readtrim	= 1;
+	      end++;
+	    }
 	  if (*end)
 	    {
-	      readend	= strtol(end, &end, 0);
-	      if (readend<0 || readend>255)
-		err(SQLITE_OK, "invalid parameter %d", readend);
+	      readend	= 256;
+	      if (*end++!='_')
+		err(SQLITE_OK, "missing underscore (_) in %s", end);
 	      if (*end)
-		err(SQLITE_OK, "parameter mismatch at %s", end);
+		{
+		  readend	= strtol(end, &end, 0);
+		  if (readend<0 || readend>255)
+		    err(SQLITE_OK, "invalid parameter %d", readend);
+		  if (*end)
+		    err(SQLITE_OK, "parameter mismatch at %s", end);
+		}
 	    }
 	}
     }
@@ -426,7 +432,7 @@ main(int argc, char **argv)
 		  err(SQLITE_OK, "internal error: %s", name);
 
 		case ':':
-		  if (name[1]=='f' && name[2]=='d' && name[3] && (((fd=strtol(name+3, &end, 10)), end) && (!*end || (looping && *end=='_'))))
+		  if (name[1]=='f' && name[2]=='d' && name[3] && (((fd=strtol(name+3, &end, 10)), end) && end && (!*end || *end=='_')))
 		    {
 		      fd	= fetchfile(pStmt, i, cnt, fd, end, &looper);
 		      debug(" = %d bytes (loop %d)\n", fd, looper);
@@ -446,7 +452,7 @@ main(int argc, char **argv)
 	      debug(" = '%s'\n", parm);
 	      check(SQ_PREFIX(_bind_text)(pStmt, i, parm, -1, SQLITE_TRANSIENT), "cannot bind parm %d: '%s'", cnt, parm);
 	    }
-	  if (looper<0)
+	  if (looping && looper<0)
 	    break;
 	  debug("run %d\n", looper);
 	  for (;;)
@@ -467,7 +473,7 @@ main(int argc, char **argv)
 		}
 	      break;
 	    }
-	  if (!looper)
+	  if (!looping || !looper)
 	    break;
 	  debug("reset\n", looper);
 	  check(SQ_PREFIX(_reset)(pStmt), "cannot reset statement: %.*s", (int)(zTail-s), s);

@@ -1,15 +1,3 @@
-Minor bugfix removed (argv[0] for CygWin), option -l for looping added
+:fd# did no more work, it only worked in form :fd#_ which worked only with switch -l.
 
-With Option -l you can do things like
-<pre>
-find . -type f -print0 |
-md5chk -nz |
-sq3 DB 'insert into md5table ( md5, name ) values ( :fd0__32, :fd0__0 )'
-</pre>
-
-For LF use something like ":fd0__10".
-
-To get rid of a CR in a CR LF sequence, use the trim option.  This is
-activated by a 't' like ':fd0_100t' or ':fd0_t_10'.
-
-But be careful as always, this has not yet been extensively debugged.
+Both has been fixed.  :fd#_ form now works in all aspects, and :fd# now works again.
