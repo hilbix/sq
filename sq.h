@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.4  2008-05-30 00:55:45  tino
+ * New options -a and -z, echo escape fixed
+ *
  * Revision 1.3  2008-03-04 09:34:01  tino
  * Bugfix: $fd# did no more work without -l
  *
@@ -39,6 +42,7 @@
 
 static SQ_PREFIX()	*db;
 static int		dodebug, doraw;
+static int		ansiescape, donul;
 
 static void
 debug(const char *s, ...)
@@ -102,12 +106,30 @@ quote_string(const char *s)
 }
 
 static void
+ansiescape_string(const unsigned char *s, int len)
+{
+  for (; --len>=0; s++)
+    if (((unsigned char)*s)<33 || ((unsigned char)*s)>=127)
+      printf("\\%03o", (unsigned char)*s);
+    else
+      switch (*s)
+	{
+	case '\\':
+	case '\'':
+	  putchar('\\');
+	default:
+	  putchar(*s);
+	  break;
+	}
+}
+
+static void
 escape_string(const unsigned char *s, int len)
 {
   for (; --len>=0; s++)
     {
       if (*s<=0x20 || (*s>0x7f && *s<0xa0))
-	printf("\\x%02x", *s);
+	printf("\\\\0%03o", *s);
       else
 	putchar(*s);
     }
@@ -144,7 +166,7 @@ row(SQ_PREFIX(_stmt) *s, int r)
 	  printf("%d ", r);
 	  quote_string(SQ_PREFIX(_column_name)(s, i));
 	}
-      else if (i || r>1)
+      else if (!donul && (i || r>1))
 	printf("\n");
       text	= SQ_PREFIX(_column_blob)(s, i);
       if (text)
@@ -154,6 +176,11 @@ row(SQ_PREFIX(_stmt) *s, int r)
 	  len	= SQ_PREFIX(_column_bytes)(s, i);
 	  if (doraw)
 	    fwrite(text, len, 1, stdout);
+	  else if (ansiescape)
+	    {
+	      putchar(' ');
+	      ansiescape_string(text, len);
+	    }
 	  else if (simplestring(text, len))
 	    printf(" t %.*s", len, (const char *)text);
 	  else
@@ -164,7 +191,9 @@ row(SQ_PREFIX(_stmt) *s, int r)
 	}
       else if (!doraw)
 	printf(" 0");
-      if (!doraw)
+      if (donul)
+	putchar(0);
+      else if (!doraw)
 	printf("\n");
       if (ferror(stdout))
 	err(SQLITE_OK, "cannot write to stdout");
@@ -352,6 +381,9 @@ main(int argc, char **argv)
     {
       switch (argv[1][1])
 	{
+	case 'a':
+	  ansiescape	= 1;
+	  continue;
 	case 'd':
 	  dodebug	= 1;
 	  continue;
@@ -361,6 +393,8 @@ main(int argc, char **argv)
 	case 't':
 	  timeout	= strtol(argv[1]+2, NULL, 0);
 	  continue;
+	case 'z':
+	  donul		= 1;
 	case 'r':
 	  doraw		= 1;
 	  continue;
@@ -372,10 +406,12 @@ main(int argc, char **argv)
       fprintf(stderr,
 	      "Usage: %s [-d] [-l] [-tN] [-r] database statement args #<data\n"
 	      "\t\tversion " SQ_VERSION " compiled " __DATE__ "\n"
+	      "\t-a	Use ANSI (shell) escapes instead of echo compatible ones\n"
 	      "\t-d	switch on some debugging to stderr\n"
-	      "\t-l	loop option added, loop if :fd#,X sequence not at EOF\n"
+	      "\t-l	loop option added, loop if :fd#_X sequence not at EOF\n"
 	      "\t-tN	set the timeout in ms, default %ld\n"
 	      "\t-r	raw output, no row, col, type, fields NL separated\n"
+	      "\t-z	like -r, but output NUL terminated\n"
 	      "\tUse ?NNN or :XXX to fetch args, $ENV to access environment\n"
 	      "\tSome :name have special meaning:\n"
 	      "\t	:fd#	read BLOB from file descriptor # (0=stdin)\n"
@@ -390,7 +426,12 @@ main(int argc, char **argv)
 	      "\t	e)	echo -e \"row=$row col=$col data=$data\";;\n"
 	      "\t	0)	echo \"row=$row col=$col NULL\";;\n"
 	      "\t	esac\n"
-	      "\tNote that real apps will use 'echo -ne', not 'echo -e'\n"
+	      "\tReal apps will use 'echo -ne', not 'echo -e'.\n"
+	      "\tFor options -a see following fragment:\n"
+	      "\t	sq3 -a 'select * from table' |\n"
+	      "\t	while read -r row col data\n"
+	      "\t	do eval data=\"\\$'$data'\"\n"
+	      "\t		...\n"
 	      , arg0, timeout);
       return 1;
     }
