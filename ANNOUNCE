@@ -1,3 +1,11 @@
-Bugfix release, echo -e sequence was bugged
+Bugfix release, echo -e sequence still was bugged
 
-Option -a and -z added
+The problem is:
+
+echo '\\0041' | { read a; echo -e "$a"; }
+
+vs.
+
+echo '\0041' | { read -r a; echo -e "$a"; }
+
+I prefer the latter, but tested the first one.  SIGH.

@@ -1,3 +1,8 @@
+2008-06-07  Valentin Hilbig  <tino@firebird.03.softkill.net>
+
+	* sq.h (ansiescape_string): 'echo' escape sequence fixed again,
+	sigh.
+
 2008-05-28  Valentin Hilbig  <tino@zoo.03.softkill.net>
 
 	* sq.h (escape_string): "\xHH", replaced by "\0ooo" as echo might

@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.5  2008-06-06 23:56:34  tino
+ * Echo escape now shall work as thought
+ *
  * Revision 1.4  2008-05-30 00:55:45  tino
  * New options -a and -z, echo escape fixed
  *
@@ -129,7 +132,7 @@ escape_string(const unsigned char *s, int len)
   for (; --len>=0; s++)
     {
       if (*s<=0x20 || (*s>0x7f && *s<0xa0))
-	printf("\\\\0%03o", *s);
+	printf("\\0%03o", *s);
       else
 	putchar(*s);
     }
