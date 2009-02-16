@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.6  2009-02-16 04:41:37  tino
+ * Feature :fd#_[#][t]_[#]_X (sigh)
+ *
  * Revision 1.5  2008-06-06 23:56:34  tino
  * Echo escape now shall work as thought
  *
@@ -288,14 +291,15 @@ fetchfile(SQ_PREFIX(_stmt) *pStmt, int i, int cnt, int fd, char *end, int *loope
 	      readend	= 256;
 	      if (*end++!='_')
 		err(SQLITE_OK, "missing underscore (_) in %s", end);
-	      if (*end)
+	      if (*end && *end!='_')
 		{
 		  readend	= strtol(end, &end, 0);
 		  if (readend<0 || readend>255)
 		    err(SQLITE_OK, "invalid parameter %d", readend);
-		  if (*end)
+		  if (*end && *end!='_')
 		    err(SQLITE_OK, "parameter mismatch at %s", end);
 		}
+	      /* rest ignored, there to differentiate the definitions	*/
 	    }
 	}
     }
@@ -420,6 +424,7 @@ main(int argc, char **argv)
 	      "\t	:fd#	read BLOB from file descriptor # (0=stdin)\n"
 	      "\t	:fd#_N	read N characters, N is max if used in :fd#_N_T\n"
 	      "\t	:fd#__T	read up to character T, T defaults to whitespace\n"
+	      "\t	:fd#___X as before, but X is ignored to allow multiple use.\n"
 	      "\t	Special: If N ends on t, whitespace trimming is done\n"
 	      "\tParse the output as follows:\n"
 	      "\t	sq3 'select * from table' |\n"

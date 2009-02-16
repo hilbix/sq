@@ -1,3 +1,7 @@
+2009-02-16  Valentin Hilbig  <tino@zoo.03.softkill.net>
+
+	* sq.h (fetchfile): added format :fd#_#[t]_#_whatever
+
 2008-06-07  Valentin Hilbig  <tino@firebird.03.softkill.net>
 
 	* sq.h (ansiescape_string): 'echo' escape sequence fixed again,
