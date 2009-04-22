@@ -1,7 +1,7 @@
-Extended :fd#__ support.  This can be considered a bugfix (feature fix).
+Option -s and -u added
 
-If you wanted to read more than one field with the same termination
-rule, this was not possible, as, for example, several :fd0__32
-parameters all defined *one*single* parameter which was set.  To be
-able to create more than one parameter this way, just append
-_something to it, like: :fd0__32_a :fd0__32_b and so on.
+Option -s sets the separator to use to output the fields.
+Supresses field name and type output.
+Best use with -a.
+
+Option -u flushes each row (makes it unbuffered).

@@ -2,7 +2,7 @@
  *
  * SQLITE3 query tool for shell usage
  *
- * Copyright (C)2006-2008 Valentin Hilbig, webmaster@scylla-charybdis.com
+ * Copyright (C)2006-2009 Valentin Hilbig, webmaster@scylla-charybdis.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.7  2009-04-22 16:49:43  tino
+ * -s and -u
+ *
  * Revision 1.6  2009-02-16 04:41:37  tino
  * Feature :fd#_[#][t]_[#]_X (sigh)
  *
@@ -49,6 +52,8 @@
 static SQ_PREFIX()	*db;
 static int		dodebug, doraw;
 static int		ansiescape, donul;
+static int		unbuffered;
+static const char	*sep;
 
 static void
 debug(const char *s, ...)
@@ -167,7 +172,16 @@ row(SQ_PREFIX(_stmt) *s, int r)
     {
       const void	*text;
 
-      if (!doraw)
+      if (sep)
+        {
+          if (!i)
+	    {}
+	  else if (!*sep)
+	    putchar(0);
+	  else
+	    fputs(sep, stdout);
+        }
+      else if (!doraw)
 	{
 	  printf("%d ", r);
 	  quote_string(SQ_PREFIX(_column_name)(s, i));
@@ -184,26 +198,34 @@ row(SQ_PREFIX(_stmt) *s, int r)
 	    fwrite(text, len, 1, stdout);
 	  else if (ansiescape)
 	    {
-	      putchar(' ');
+	      if (!sep)
+	        putchar(' ');
 	      ansiescape_string(text, len);
 	    }
 	  else if (simplestring(text, len))
-	    printf(" t %.*s", len, (const char *)text);
+	    printf("%s%.*s", (sep ? "" : " t "), len, (const char *)text);
 	  else
 	    {
-	      printf(" e ");
+              if (!sep)
+	        printf(" e ");
 	      escape_string(text, len);
 	    }
 	}
-      else if (!doraw)
+      else if (!doraw && !sep)
 	printf(" 0");
-      if (donul)
+      if (sep)
+	{}
+      else if (donul)
 	putchar(0);
       else if (!doraw)
 	printf("\n");
       if (ferror(stdout))
 	err(SQLITE_OK, "cannot write to stdout");
     }
+  if (sep)
+    putchar((donul ? 0 : '\n'));
+  if (unbuffered)
+    fflush(stdout);
 }
 
 static void *
@@ -397,13 +419,19 @@ main(int argc, char **argv)
 	case 'l':
 	  looping	= 1;
 	  continue;
-	case 't':
-	  timeout	= strtol(argv[1]+2, NULL, 0);
-	  continue;
 	case 'z':
 	  donul		= 1;
 	case 'r':
 	  doraw		= 1;
+	  continue;
+        case 's':
+	  sep		= argv[1]+2;
+          continue;
+	case 't':
+	  timeout	= strtol(argv[1]+2, NULL, 0);
+	  continue;
+        case 'u':
+	  unbuffered	= 1;
 	  continue;
 	}
       break;
@@ -411,13 +439,15 @@ main(int argc, char **argv)
   if (argc<3)
     {
       fprintf(stderr,
-	      "Usage: %s [-d] [-l] [-tN] [-r] database statement args #<data\n"
+	      "Usage: %s {-a|-d|-l|-n|-r|-sSTR|-tN|-z} database statement args #<data\n"
 	      "\t\tversion " SQ_VERSION " compiled " __DATE__ "\n"
 	      "\t-a	Use ANSI (shell) escapes instead of echo compatible ones\n"
 	      "\t-d	switch on some debugging to stderr\n"
 	      "\t-l	loop option added, loop if :fd#_X sequence not at EOF\n"
-	      "\t-tN	set the timeout in ms, default %ld\n"
 	      "\t-r	raw output, no row, col, type, fields NL separated\n"
+	      "\t-sSEP	Output fields on one line SEP separated, SEP defaults to NUL if empty\n"
+	      "\t-tN	set the timeout in ms, default %ld\n"
+	      "\t-u	unbuffered output, flush after each row\n"
 	      "\t-z	like -r, but output NUL terminated\n"
 	      "\tUse ?NNN or :XXX to fetch args, $ENV to access environment\n"
 	      "\tSome :name have special meaning:\n"
