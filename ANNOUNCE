@@ -1,4 +1,5 @@
-Option -s and -u added
+Option -s and -u added and -t fixed for each statement.
+Now installs to /usr/local/bin/
 
 Option -s sets the separator to use to output the fields.
 Supresses field name and type output.

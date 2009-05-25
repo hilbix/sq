@@ -1,3 +1,8 @@
+2009-05-25  Valentin Hilbig  <tino@zoo.03.softkill.net>
+
+	* sq.h (main): timeout now set before each step(), too, such that
+	it works every time, not only for the first statement.
+
 2009-02-16  Valentin Hilbig  <tino@zoo.03.softkill.net>
 
 	* sq.h (fetchfile): added format :fd#_#[t]_#_whatever

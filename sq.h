@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.8  2009-05-25 00:17:31  tino
+ * Timeout now works for all statements
+ *
  * Revision 1.7  2009-04-22 16:49:43  tino
  * -s and -u
  *
@@ -475,6 +478,10 @@ main(int argc, char **argv)
     }
   check(SQ_PREFIX(_open)(argv[1], &db), "cannot open db %s", argv[1]);
   check(SQ_PREFIX(_busy_timeout)(db, timeout), "cannot set timeout to %ld", timeout);
+#ifdef	WITH_PCRE
+  check(SQ_PREFIX(_create_function)(db, "pcre", 2, SQLITE_UTF8, NULL, pcre2, NULL, NULL));
+  check(SQ_PREFIX(_create_function)(db, "pcre", 3, SQLITE_UTF8, NULL, pcre3, NULL, NULL));
+#endif
   s	= argv[2];
   arg	= 3;
   cnt	= 0;
@@ -538,6 +545,7 @@ main(int argc, char **argv)
 	    {
 	      int	r;
 
+  	      check(SQ_PREFIX(_busy_timeout)(db, timeout), "cannot set timeout to %ld", timeout);
 	      switch (r=SQ_PREFIX(_step)(pStmt))
 		{
 		case SQLITE_ROW:
