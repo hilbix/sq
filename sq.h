@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.10  2009-05-25 11:38:15  tino
+ * Timestamping for debugging
+ *
  * Revision 1.9  2009-05-25 11:14:45  tino
  * Whitespace trimming and improved debug
  *
@@ -52,7 +55,9 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <ctype.h>
-
+#include <time.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 static SQ_PREFIX()	*db;
@@ -68,6 +73,18 @@ debug(const char *s, ...)
     return;
   va_list	list;
 
+  if (*s=='[')
+    {
+      struct timeval	tv;
+      struct tm		*tm;
+      static long	mypid;
+
+      if (!mypid)
+	mypid	= getpid();
+      gettimeofday(&tv, NULL);
+      tm	= gmtime(&tv.tv_sec);
+      fprintf(stderr, "[%04d%02d%02d-%02d%02d%02d.%06ld][%ld]", 1900+tm->tm_year, 1+tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec, (long)tv.tv_usec, mypid);
+    }
   va_start(list, s);
   vfprintf(stderr, s, list);
   va_end(list);
@@ -79,6 +96,7 @@ verr(int rc, const char *s, va_list list)
   int		e;
 
   e	= errno;
+  debug("[err] %d %s\n", rc, s);
   fprintf(stderr, "sqlite error %d: ", rc);
   vfprintf(stderr, s, list);
   if (rc!=SQLITE_OK)
@@ -485,6 +503,8 @@ main(int argc, char **argv)
   check(SQ_PREFIX(_create_function)(db, "pcre", 2, SQLITE_UTF8, NULL, pcre2, NULL, NULL));
   check(SQ_PREFIX(_create_function)(db, "pcre", 3, SQLITE_UTF8, NULL, pcre3, NULL, NULL));
 #endif
+
+  debug("[start]\n");
   s	= argv[2];
   arg	= 3;
   cnt	= 0;
@@ -501,9 +521,9 @@ main(int argc, char **argv)
       larg	= arg;
       zTail	= 0;
       check(SQ_PREFIX(_prepare)(db, s, -1, &pStmt, &zTail), "invalid sql: %s", s);
+      debug("[sql] %.*s\n", (int)(zTail-s), s);
       for (;;)
 	{
-	  debug("SQL (%.*s)\n", (int)(zTail-s), s);
 	  looper	= 0;
 	  arg		= larg;
 	  n		= SQ_PREFIX(_bind_parameter_count)(pStmt);
@@ -549,7 +569,7 @@ main(int argc, char **argv)
 	    }
 	  if (looping && looper<0)
 	    break;
-	  debug("run %d\n", looper);
+	  debug("[run] %d\n", looper);
 	  for (;;)
 	    {
 	      int	r;
@@ -571,12 +591,14 @@ main(int argc, char **argv)
 	    }
 	  if (!looping || !looper)
 	    break;
-	  debug("reset\n", looper);
+	  debug("[reset]\n");
 	  check(SQ_PREFIX(_reset)(pStmt), "cannot reset statement: %.*s", (int)(zTail-s), s);
 	}
+      debug("[finalize]\n");
       check(SQ_PREFIX(_finalize)(pStmt), "cannot finalize statement: %.*s", (int)(zTail-s), s);
       s	= zTail;
     }
+  debug("[end]\n");
   check(SQ_PREFIX(_close)(db), "cannot close db %s", argv[1]);
   return 0;
 }

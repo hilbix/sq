@@ -1,5 +1,8 @@
 2009-05-25  Valentin Hilbig  <tino@zoo.03.softkill.net>
 
+	* sq.h (debug): timestamping added
+	(verr): debugging added for timestamping in error case
+
 	* TODO: added
 
 	* sq.h (main): timeout now set before each step(), too, such that
