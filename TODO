@@ -1,0 +1,30 @@
+$Header$
+
+Bugs and limitations:
+
+- Commandline is too stupid.
+- Tool still has too many limits.
+- There is no infinite timeout.  (You can emulate with lockrun, though.)
+- :fd#_.. thingie is somewhat cryptic, however I have no good idea how to do it.
+- add user functions!  See below.
+- here-scripts (Shell) not supported.  (read statement from stdin)
+
+Possible functions:
+
+pcre(r,s)	return match perl-regexp r to s
+		example: pcre('|/[^?/]*$|',url)
+pcre(r,s,o)	return replacement string o according of match r to s
+		pcre('|(http://[^?/]*/[^?]*/thumbs/([^?]*)$|',url,'$1/$2')
+digest(alg,s)	Calculate digest of s with algorithm alg
+		Algorithms: md5 sha sha1 sha224 sha256 sha384 sha512
+shell(s,..)	Send arguments via commandline, returns stdout.
+		THIS FORKS FOR EACH RECORD!
+filter(s,..)	Send arguments to stdin, read a line of answer from stdout.
+		This only forks once.  No whitespace trimming is done!
+math(X,op,Y)	Arbitrary precision math, calculate X op Y
+		Base2, base8, base10, base16, base32, base64 and blob(=base256)
+
+$Log$
+Revision 1.1  2009-05-25 11:14:13  tino
+added
+
