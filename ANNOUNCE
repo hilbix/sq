@@ -1,8 +1,9 @@
-Option -s and -u added and -t fixed for each statement.
-Now installs to /usr/local/bin/
+Option -d now shows the statement to execute.
 
-Option -s sets the separator to use to output the fields.
-Supresses field name and type output.
-Best use with -a.
+Behavioral change:  Before 'sq3 test.db ""' was an error, now this is silently skipped.
+However the behavior of 'sq3 test.db ;' still is the same, so if you need to fail on
+an empty statement, be sure to always have a trailing ';', even on empty statements.
 
-Option -u flushes each row (makes it unbuffered).
+This change is due to 'sq3 test.db " select 1; "' previously gave an error, as the
+blank after the ';' started a new, empty statement, which was not nice if you -
+somehow - tried to have some formatted shell script.

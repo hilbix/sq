@@ -1,7 +1,14 @@
 2009-05-25  Valentin Hilbig  <tino@zoo.03.softkill.net>
 
+	* TODO: added
+
 	* sq.h (main): timeout now set before each step(), too, such that
 	it works every time, not only for the first statement.
+	(main): Statement added into debugging output
+	(main): Skip spaces at the start of a statement.  This also skips
+	empty statements.  Previously 'sq db.sqlite ""' was an error, now
+	it does just nothing.  If you want this behavior again, always end
+	the statement on a ';' as 'sq db.sqlite ";"' is an error again.
 
 2009-02-16  Valentin Hilbig  <tino@zoo.03.softkill.net>
 

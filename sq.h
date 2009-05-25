@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.9  2009-05-25 11:14:45  tino
+ * Whitespace trimming and improved debug
+ *
  * Revision 1.8  2009-05-25 00:17:31  tino
  * Timeout now works for all statements
  *
@@ -486,15 +489,21 @@ main(int argc, char **argv)
   arg	= 3;
   cnt	= 0;
   res	= 0;
-  do
+  while (*s)
     {
       int	n, i, looper, larg;
 
+      if (isspace(*s))
+	{
+	  s++;
+	  continue;
+	}
       larg	= arg;
       zTail	= 0;
       check(SQ_PREFIX(_prepare)(db, s, -1, &pStmt, &zTail), "invalid sql: %s", s);
       for (;;)
 	{
+	  debug("SQL (%.*s)\n", (int)(zTail-s), s);
 	  looper	= 0;
 	  arg		= larg;
 	  n		= SQ_PREFIX(_bind_parameter_count)(pStmt);
@@ -566,8 +575,8 @@ main(int argc, char **argv)
 	  check(SQ_PREFIX(_reset)(pStmt), "cannot reset statement: %.*s", (int)(zTail-s), s);
 	}
       check(SQ_PREFIX(_finalize)(pStmt), "cannot finalize statement: %.*s", (int)(zTail-s), s);
-    } while ((s=zTail)!=0 && *s);
-
+      s	= zTail;
+    }
   check(SQ_PREFIX(_close)(db), "cannot close db %s", argv[1]);
   return 0;
 }
