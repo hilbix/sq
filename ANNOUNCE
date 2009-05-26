@@ -1,9 +1,20 @@
-Option -d now shows the statement to execute.
+Option -d now shows the statement to execute and space-trimming of commandline.
 
-Behavioral change:  Before 'sq3 test.db ""' was an error, now this is silently skipped.
-However the behavior of 'sq3 test.db ;' still is the same, so if you need to fail on
-an empty statement, be sure to always have a trailing ';', even on empty statements.
+<b>Important!</b> Don't use "begin;" for write transactions, use
+"begin exclusive;".  This is due to the way SQLITE prevents deadlocks
+while within a transaction.  If the transaction is started
+nonexclusively (without "exclusive"), the lock promotion code does not
+obey timeouts and immediately fails to prevent unneccessary deadlocks.
+If this is a correct behavior can be argued, however there is a way
+around it: By using "begin exlcusive" for transactions which
+permanently alter data.
 
-This change is due to 'sq3 test.db " select 1; "' previously gave an error, as the
-blank after the ';' started a new, empty statement, which was not nice if you -
-somehow - tried to have some formatted shell script.
+Behavioral change: Before 'sq3 test.db ""' was an error, now this is
+silently skipped.  However the behavior of 'sq3 test.db ;' still is
+the same, so if you need to fail on an empty statement, be sure to
+always have a trailing ';', even on empty statements.
+
+This change is due to 'sq3 test.db " select 1; "' previously gave an
+error, as the blank after the ';' started a new, empty statement,
+which was not nice if you - somehow - tried to have some formatted
+shell script.

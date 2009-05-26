@@ -19,6 +19,10 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.11  2009-05-26 23:33:00  tino
+ * Timeout problem found, it's an SQLite feature.  So no fix, only workaround
+ * with "begin exclusive;".  Debugging improved and extended errorcodes support.
+ *
  * Revision 1.10  2009-05-25 11:38:15  tino
  * Timestamping for debugging
  *
@@ -104,6 +108,8 @@ verr(int rc, const char *s, va_list list)
   if (e)
     fprintf(stderr, ": %s", strerror(e));
   fprintf(stderr, "\n");
+  if (rc==SQLITE_BUSY)
+    debug("[HINT] try using \"BEGIN EXCLUSIVE\" for write transactions\n");
   exit(-1);
 }
 
@@ -121,11 +127,13 @@ static void
 check(int rc, const char *s, ...)
 {
   va_list	list;
+  int		rc2;
 
   if (rc==SQLITE_OK)
     return;
   va_start(list, s);
-  verr(rc, s, list);
+  rc2	= SQ_PREFIX(_errcode)(db);
+  verr((rc2&255)==rc ? rc2 : rc, s, list);
   va_end(list);
 }
 
@@ -499,6 +507,12 @@ main(int argc, char **argv)
     }
   check(SQ_PREFIX(_open)(argv[1], &db), "cannot open db %s", argv[1]);
   check(SQ_PREFIX(_busy_timeout)(db, timeout), "cannot set timeout to %ld", timeout);
+#if 0
+  check(SQ_PREFIX(_busy_handler)(db, busy_handler, &timeout), "cannot set busy_handler");
+#endif
+  /* for some unknown reason it's really hard to get hold on the new extended error codes!
+   */
+  check(SQ_PREFIX(_extended_result_codes(db, 1)), "cannot set extended result codes");
 #ifdef	WITH_PCRE
   check(SQ_PREFIX(_create_function)(db, "pcre", 2, SQLITE_UTF8, NULL, pcre2, NULL, NULL));
   check(SQ_PREFIX(_create_function)(db, "pcre", 3, SQLITE_UTF8, NULL, pcre3, NULL, NULL));
@@ -520,7 +534,7 @@ main(int argc, char **argv)
 	}
       larg	= arg;
       zTail	= 0;
-      check(SQ_PREFIX(_prepare)(db, s, -1, &pStmt, &zTail), "invalid sql: %s", s);
+      check(SQ_PREFIX(_prepare_v2)(db, s, -1, &pStmt, &zTail), "invalid sql: %s", s);
       debug("[sql] %.*s\n", (int)(zTail-s), s);
       for (;;)
 	{
@@ -574,7 +588,6 @@ main(int argc, char **argv)
 	    {
 	      int	r;
 
-  	      check(SQ_PREFIX(_busy_timeout)(db, timeout), "cannot set timeout to %ld", timeout);
 	      switch (r=SQ_PREFIX(_step)(pStmt))
 		{
 		case SQLITE_ROW:

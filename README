@@ -9,8 +9,57 @@ To compile just type
 
 You need a sqlite3 library installed for this to compile!
 
+Important note on write transactions and timeouts:
+
+If you start a transaction with "begin;", the SQLite library does not
+obey timeouts in cases when a shared lock must be promoted to an
+exclusive lock (read: In the normal situation when you alter the
+database).  SQLite then fails immediately and does not retry according
+to the set timeout value.  This does not do a rollback (as the
+exclusive lock was not obtained), but might waste some time with
+reading before the lock was needed (as the transaction is aborted).
+Also it is annoying, that the timeout has no effect.  (As the library
+aborts the transaction, it is not possible to retry the statement.
+Even worse, old SQLite libraries might corrupt the database due to a
+caching bug after such a situation, so retrying the transaction can
+make things worse.  So there is no other way then to close the
+database.)
+
+To circumvent this, you must use "begin exclusive;" for transactions
+which alter the database (transactions are seldomly used for read
+transactions, but for read one shall not use "begin exclusive", of
+course), as this immediately locks the database.  In this case the
+timeout setting will be in effect, too.  The downside is, that the
+exclusive (write) lock then is done before it is really needed.
+
+Sadly I did not find a way to fix it on the fly.  Also printing too
+much information in a default setting is annoying, so you will only
+get the hint to use "begin exclusive", when you run sq3 with debugging
+(option -d) switched on.
+
+To sum it up:
+
+If you need transactions, use following construct:
+
+For transactions which only read data and create temporary tables
+(therefor do not need filesystem write locks) use "begin;" for
+transactions.
+
+For transactions which might alter data in the persistent SQLite file
+(that is, not if it writes into memory based tables only) use "begin
+exclusive;".  You can do so if you are unsure, however this might hurt
+performance dramatically if you use it when it is not needed.
+
+If you do not follow this advice, you will see strange things happen,
+like bad performance or failing transactions because the timeout value
+does not work and sq3 fails immediately instead.  (It is not my fault,
+this is due to deadlock prevention built into the SQLite library.)
+
 -Tino
 $Log$
+Revision 1.2  2009-05-26 23:33:00  tino
+Timeout problem found, it's an SQLite feature.  So no fix, only workaround
+with "begin exclusive;".  Debugging improved and extended errorcodes support.
+
 Revision 1.1  2006-06-02 01:31:49  tino
 First version, global commit
-

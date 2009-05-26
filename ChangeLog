@@ -2,6 +2,10 @@
 
 	* sq.h (debug): timestamping added
 	(verr): debugging added for timestamping in error case
+	(main): now using the _v2 interface as the legacy SQLite interface
+	seems to have serious issues with busy_timeout.  If you do not
+	have the _v2 interface, just remove this 3 letters from the
+	source.
 
 	* TODO: added
 
