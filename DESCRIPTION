@@ -2,14 +2,13 @@ SQLITE3 query tool for shell usage
 # $Header$
 #
 # $Log$
+# Revision 1.3  2009-05-28 09:29:46  tino
+# Option -a -s' ' added
+#
 # Revision 1.2  2006-06-15 13:15:12  tino
 # Typo corrected
-#
-# Revision 1.1  2006/06/02 01:31:49  tino
-# First version, global commit
-#
 
-<b>Sorry, only works with sqlite version 3 yet!</b>
+<b>This only works with sqlite version 3 databases!</b>
 
 If you want to pipe data in and out a sqlite3 database from shell,
 this tool is for you.
@@ -58,3 +57,16 @@ done
 </pre>
 The funny thing is the missing newline which makes the "read -r col3" to return EOF.
 Well, one can consider this a feature, but it's moreover a crude sideeffect ;)
+
+Another pattern now can be (you can leave out the -a and the eval if there cannot be spaces in the colums):
+<pre>
+./sq3 -a -s' ' test.db "select * from a" |
+while read -r c1 c2 c3
+do
+	eval c1="\$'$c1'"
+	eval c2="\$'$c2'"
+	eval c3="\$'$c3'"
+	echo "lazy: $c1 - $c2 - $c3"
+done
+</pre>
+
