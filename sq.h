@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.12  2009-05-28 09:29:26  tino
+ * Debug output for results
+ *
  * Revision 1.11  2009-05-26 23:33:00  tino
  * Timeout problem found, it's an SQLite feature.  So no fix, only workaround
  * with "begin exclusive;".  Debugging improved and extended errorcodes support.
@@ -203,6 +206,7 @@ row(SQ_PREFIX(_stmt) *s, int r)
   for (i=0; i<n; i++)
     {
       const void	*text;
+      int	len;
 
       if (sep)
         {
@@ -223,8 +227,6 @@ row(SQ_PREFIX(_stmt) *s, int r)
       text	= SQ_PREFIX(_column_blob)(s, i);
       if (text)
 	{
-	  int	len;
-
 	  len	= SQ_PREFIX(_column_bytes)(s, i);
 	  if (doraw)
 	    fwrite(text, len, 1, stdout);
@@ -253,6 +255,11 @@ row(SQ_PREFIX(_stmt) *s, int r)
 	printf("\n");
       if (ferror(stdout))
 	err(SQLITE_OK, "cannot write to stdout");
+
+      if (text)
+	debug("[row%dcol%d=%d]%.*s\n", r, i, len, len, text);
+      else
+	debug("[row%dcol%d=null]\n", r, i);
     }
   if (sep)
     putchar((donul ? 0 : '\n'));
