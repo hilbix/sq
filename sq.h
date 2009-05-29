@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.13  2009-05-29 15:55:48  tino
+ * Next version
+ *
  * Revision 1.12  2009-05-28 09:29:26  tino
  * Debug output for results
  *
@@ -67,11 +70,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define	MAX_SEPS	100
+
 static SQ_PREFIX()	*db;
 static int		dodebug, doraw;
 static int		ansiescape, donul;
 static int		unbuffered;
-static const char	*sep;
+static const char	*sep[MAX_SEPS], *rowbegin, *rowend;
+static int		seps;
 
 static void
 debug(const char *s, ...)
@@ -198,9 +204,22 @@ simplestring(const unsigned char *s, int len)
 }
 
 static void
+putStringOrNUL(const char *s)
+{
+  if (!s)
+    return;
+  if (*s)
+    fputs(s, stdout);
+  else
+    putchar(0);
+}
+
+static void
 row(SQ_PREFIX(_stmt) *s, int r)
 {
   int	i, n;
+
+  putStringOrNUL(rowbegin);
 
   n	= SQ_PREFIX(_column_count)(s);
   for (i=0; i<n; i++)
@@ -208,14 +227,10 @@ row(SQ_PREFIX(_stmt) *s, int r)
       const void	*text;
       int	len;
 
-      if (sep)
+      if (seps)
         {
-          if (!i)
-	    {}
-	  else if (!*sep)
-	    putchar(0);
-	  else
-	    fputs(sep, stdout);
+          if (i)
+	    putStringOrNUL(sep[(i-1)%seps]);
         }
       else if (!doraw)
 	{
@@ -232,22 +247,22 @@ row(SQ_PREFIX(_stmt) *s, int r)
 	    fwrite(text, len, 1, stdout);
 	  else if (ansiescape)
 	    {
-	      if (!sep)
+	      if (!seps)
 	        putchar(' ');
 	      ansiescape_string(text, len);
 	    }
 	  else if (simplestring(text, len))
-	    printf("%s%.*s", (sep ? "" : " t "), len, (const char *)text);
+	    printf("%s%.*s", (seps ? "" : " t "), len, (const char *)text);
 	  else
 	    {
-              if (!sep)
+              if (!seps)
 	        printf(" e ");
 	      escape_string(text, len);
 	    }
 	}
-      else if (!doraw && !sep)
+      else if (!doraw && !seps)
 	printf(" 0");
-      if (sep)
+      if (seps)
 	{}
       else if (donul)
 	putchar(0);
@@ -261,7 +276,8 @@ row(SQ_PREFIX(_stmt) *s, int r)
       else
 	debug("[row%dcol%d=null]\n", r, i);
     }
-  if (sep)
+  putStringOrNUL(rowend);
+  if (seps)
     putchar((donul ? 0 : '\n'));
   if (unbuffered)
     fflush(stdout);
@@ -452,25 +468,50 @@ main(int argc, char **argv)
 	case 'a':
 	  ansiescape	= 1;
 	  continue;
+
+	case 'b':
+	  rowbegin	= argv[1]+2;
+	  continue;
+
 	case 'd':
 	  dodebug	= 1;
 	  continue;
+
+	case 'e':
+	  rowend	= argv[1]+2;
+	  continue;
+
 	case 'l':
 	  looping	= 1;
 	  continue;
+
 	case 'z':
 	  donul		= 1;
 	case 'r':
 	  doraw		= 1;
 	  continue;
+
         case 's':
-	  sep		= argv[1]+2;
+	  if (seps>=sizeof sep/sizeof *sep)
+	    err(SQLITE_OK, "too many options -s, increase MAX_SEPS and recompile");
+	  sep[seps++]	= argv[1]+2;
           continue;
+
 	case 't':
 	  timeout	= strtol(argv[1]+2, NULL, 0);
 	  continue;
+
         case 'u':
 	  unbuffered	= 1;
+	  continue;
+
+	case 'v':
+	  ansiescape	= 1;
+	  if (seps+1>=sizeof sep/sizeof *sep)
+	    err(SQLITE_OK, "too many options -s, increase MAX_SEPS and recompile");
+	  sep[seps++]	= "=$'";
+	  sep[seps++]	= "' ";
+	  rowend	= "'";
 	  continue;
 	}
       break;
@@ -481,13 +522,17 @@ main(int argc, char **argv)
 	      "Usage: %s {-a|-d|-l|-n|-r|-sSTR|-tN|-z} database statement args #<data\n"
 	      "\t\tversion " SQ_VERSION " compiled " __DATE__ "\n"
 	      "\t-a	Use ANSI (shell) escapes instead of echo compatible ones\n"
+	      "\t-bSTR	additional string to output on row Begin, empty for NUL\n"
 	      "\t-d	switch on some debugging to stderr\n"
+	      "\t-eSTR	additional string to output on row End, empty for NUL\n"
+	      "\t-fSTR	final string when program terminates\n"
 	      "\t-l	loop option added, loop if :fd#_X sequence not at EOF\n"
 	      "\t-r	raw output, no row, col, type, fields NL separated\n"
-	      "\t-sSEP	Output fields on one line SEP separated, SEP defaults to NUL if empty\n"
+	      "\t-sSEP	Output fields on one line SEP separated, empty for NUL\n"
 	      "\t-tN	set the timeout in ms, default %ld\n"
 	      "\t-u	unbuffered output, flush after each row\n"
-	      "\t-z	like -r, but output NUL terminated\n"
+	      "\t-v	same as -a -s\"=$'\" -s\"' \" -e\"'\"\n"
+	      "\t-z	implies -r, but output NULs\n"
 	      "\tUse ?NNN or :XXX to fetch args, $ENV to access environment\n"
 	      "\tSome :name have special meaning:\n"
 	      "\t	:fd#	read BLOB from file descriptor # (0=stdin)\n"
@@ -504,11 +549,13 @@ main(int argc, char **argv)
 	      "\t	0)	echo \"row=$row col=$col NULL\";;\n"
 	      "\t	esac\n"
 	      "\tReal apps will use 'echo -ne', not 'echo -e'.\n"
-	      "\tFor options -a see following fragment:\n"
+	      "\tExample for option -a:\n"
 	      "\t	sq3 -a 'select * from table' |\n"
 	      "\t	while read -r row col data\n"
 	      "\t	do eval data=\"\\$'$data'\"\n"
 	      "\t		...\n"
+	      "\tExample for option -v:\n"
+	      "\t	eval `sq3 -v 
 	      , arg0, timeout);
       return 1;
     }

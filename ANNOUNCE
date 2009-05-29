@@ -1,20 +1,12 @@
-Option -d now shows the statement to execute and space-trimming of commandline.
+Option -v is for convenience use of -a, -s and -e
+Option -s now can be given multiple times.
+Options -b and -e added.
 
-<b>Important!</b> Don't use "begin;" for write transactions, use
-"begin exclusive;".  This is due to the way SQLITE prevents deadlocks
-while within a transaction.  If the transaction is started
-nonexclusively (without "exclusive"), the lock promotion code does not
-obey timeouts and immediately fails to prevent unneccessary deadlocks.
-If this is a correct behavior can be argued, however there is a way
-around it: By using "begin exlcusive" for transactions which
-permanently alter data.
+Option -v was added for easy shell eval purpose and needed option -e as well as multiple option -s.
+For symmetry of -e, option -b has been added, too.
 
-Behavioral change: Before 'sq3 test.db ""' was an error, now this is
-silently skipped.  However the behavior of 'sq3 test.db ;' still is
-the same, so if you need to fail on an empty statement, be sure to
-always have a trailing ';', even on empty statements.
+The new option -v sets all options exactly as how in following example:
+<pre>echo eval `./sq3 -a -s"=$'" -s"' " -e"'" test.db "select 'test1',' complex string ','test2','another '' string'"`</pre>
+This outputs 
+<pre>eval test1=$'\040complex\040string\040' test2=$'another\040\'\040string'</pre>
 
-This change is due to 'sq3 test.db " select 1; "' previously gave an
-error, as the blank after the ';' started a new, empty statement,
-which was not nice if you - somehow - tried to have some formatted
-shell script.
