@@ -19,6 +19,9 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  * $Log$
+ * Revision 1.14  2009-05-29 16:03:50  tino
+ * Usage now ready
+ *
  * Revision 1.13  2009-05-29 15:55:48  tino
  * Next version
  *
@@ -555,7 +558,8 @@ main(int argc, char **argv)
 	      "\t	do eval data=\"\\$'$data'\"\n"
 	      "\t		...\n"
 	      "\tExample for option -v:\n"
-	      "\t	eval `sq3 -v 
+	      "\t	eval `./sq3 -v a.db \"select 't1',' hel lo ','t2','wo''rld'\"`\n"
+	      "\t	echo \"#${t1}#${t2}#\"\n"
 	      , arg0, timeout);
       return 1;
     }
