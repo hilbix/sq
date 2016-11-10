@@ -228,7 +228,7 @@ row(SQ_PREFIX(_stmt) *s, int r)
   for (i=0; i<n; i++)
     {
       const void	*text;
-      int	len;
+      int		len=0 /* shutup stupid compiler */;
 
       if (seps)
         {

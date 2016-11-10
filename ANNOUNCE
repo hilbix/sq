@@ -1,12 +1,2 @@
-Option -v is for convenience use of -a, -s and -e
-Option -s now can be given multiple times.
-Options -b and -e added.
-
-Option -v was added for easy shell eval purpose and needed option -e as well as multiple option -s.
-For symmetry of -e, option -b has been added, too.
-
-The new option -v sets all options exactly as how in following example:
-<pre>echo eval `./sq3 -a -s"=$'" -s"' " -e"'" test.db "select 'test1',' complex string ','test2','another '' string'"`</pre>
-This outputs 
-<pre>eval test1=$'\040complex\040string\040' test2=$'another\040\'\040string'</pre>
-
+Announcements are now in the git commit log:
+git log --follow VERSION

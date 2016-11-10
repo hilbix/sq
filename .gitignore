@@ -1,5 +1,4 @@
-Makefile
-Makefile.md5
 *.d
+*.o
 sq3
 sq3_version.h
